@@ -168,7 +168,7 @@ input:focus,select:focus,textarea:focus{
   border-color:var(--gold-dark);
   box-shadow:0 0 0 4px var(--gold-glow);
 }
-input[type="range"]{accent-color:var(--gold-dark);}
+input[type="range"]{accent-color:var(--gold-dark);width:100%;height:6px;cursor:pointer;}
 textarea{resize:vertical;min-height:90px;}
 
 /* ── CHIPS ── */
@@ -1088,6 +1088,8 @@ let AS = {
   numQ:10, verdeling:'evenredig',
   naam:'', instructies:'',
   passPercent:70,
+  targetScore:15, maxRefQ:30,
+  pointsCorrect:2, pointsIncorrect:1,
   lang: 'nl',
 };
 
@@ -1098,7 +1100,7 @@ function getASAvailable() {
 function renderAdminSamenstellen() {
   AS.lang = App.lang;
   const available=getASAvailable();
-  const maxQ=Math.max(1,Math.min(available.length,60));
+  const maxQ=Math.max(1,Math.min(available.length,100));
   const numQ=Math.min(AS.numQ,maxQ);
   const allModules=uniqueModules();
   const allCats=uniqueCats(AS.modules);
@@ -1178,13 +1180,41 @@ function renderAdminSamenstellen() {
           </select>
         </div>
 
-        <!-- ZAKGRENS -->
+        <!-- ZAKGRENS / REFRESHMENT INSTELLINGEN -->
         ${AS.mode==='kennischeck'?`<div class="card mb-16">
           <div class="label mb-8">Slagingspercentage: <strong>${AS.passPercent}%</strong> (${passNeeded}/${numQ} vragen)</div>
           <input type="range" min="50" max="100" value="${AS.passPercent}" 
             oninput="AS.passPercent=parseInt(this.value);this.previousElementSibling.querySelector('strong').textContent=this.value+'%'">
         </div>`:`<div class="card mb-16">
-          <p class="subtitle">⚡ Refreshment: deelnemers spelen door totdat ze een target score bereiken.</p>
+          <div class="label mb-12" style="color:var(--gold-dark);">⚡ Adaptieve Refreshment instellingen</div>
+          <div class="notify notify-info mb-16" style="font-size:13px;">
+            Deelnemers beantwoorden vragen totdat ze de <strong>target score</strong> bereiken.<br>
+            +${AS.pointsCorrect} pt bij juist antwoord &nbsp;·&nbsp; −${AS.pointsIncorrect} pt bij fout antwoord.
+          </div>
+          <div class="mb-12">
+            <div class="label mb-8">Target score: <strong style="color:var(--gold-dark);font-size:18px;">${AS.targetScore} punten</strong></div>
+            <input type="range" min="5" max="50" step="1" value="${AS.targetScore}" style="width:100%;height:8px;"
+              oninput="AS.targetScore=parseInt(this.value);renderAdminSamenstellen()">
+          </div>
+          <div class="grid-2 mb-12" style="gap:16px;">
+            <div>
+              <div class="label mb-8">Punten per juist antwoord</div>
+              <select onchange="AS.pointsCorrect=parseInt(this.value);renderAdminSamenstellen()">
+                ${[1,2,3].map(v=>`<option value="${v}" ${AS.pointsCorrect===v?'selected':''}>${v} punt${v>1?'en':''}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <div class="label mb-8">Punten aftrek bij fout antwoord</div>
+              <select onchange="AS.pointsIncorrect=parseInt(this.value);renderAdminSamenstellen()">
+                ${[0,1,2].map(v=>`<option value="${v}" ${AS.pointsIncorrect===v?'selected':''}>${v} punt${v!==1?'en':''}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div>
+            <div class="label mb-8">Max. aantal vragen (veiligheidsnet): <strong>${Math.min(AS.maxRefQ, available.length)}</strong></div>
+            <input type="range" min="10" max="${Math.min(100, available.length)}" value="${Math.min(AS.maxRefQ, available.length)}" style="width:100%;height:8px;"
+              oninput="AS.maxRefQ=parseInt(this.value);renderAdminSamenstellen()">
+          </div>
         </div>`}
 
         <button class="btn btn-primary btn-lg btn-block" onclick="maakToets()" ${available.length<1?'disabled':''}>
@@ -1201,7 +1231,12 @@ function renderAdminSamenstellen() {
           <div class="cfg-row"><span class="cfg-label">Taal</span><span class="cfg-value">${App.lang==='nl'?'🇳🇱 NL':'🇬🇧 EN'}</span></div>
           <div class="cfg-row"><span class="cfg-label">Modules</span><span class="cfg-value">${AS.modules.length===0?'Alle':AS.modules.length+' geselecteerd'}</span></div>
           <div class="cfg-row"><span class="cfg-label">Niveaus</span><span class="cfg-value">${AS.niveaus.length===0?'Alle':AS.niveaus.join(', ')}</span></div>
-          ${AS.mode==='kennischeck'?`<div class="cfg-row"><span class="cfg-label">Zakgrens</span><span class="cfg-value">${AS.passPercent}%</span></div>`:''}
+          ${AS.mode==='kennischeck'?`<div class="cfg-row"><span class="cfg-label">Zakgrens</span><span class="cfg-value">${AS.passPercent}%</span></div>`:`
+          <div class="cfg-row"><span class="cfg-label">Target score</span><span class="cfg-value" style="color:var(--gold);">${AS.targetScore} pt</span></div>
+          <div class="cfg-row"><span class="cfg-label">Juist</span><span class="cfg-value">+${AS.pointsCorrect} pt</span></div>
+          <div class="cfg-row"><span class="cfg-label">Fout</span><span class="cfg-value">−${AS.pointsIncorrect} pt</span></div>
+          <div class="cfg-row"><span class="cfg-label">Max vragen</span><span class="cfg-value">${AS.maxRefQ}</span></div>
+          `}
           <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);">
             <div class="label mb-8" style="color:rgba(255,255,255,0.4);">Preview modules</div>
             ${uniqueModules().filter(m=>AS.modules.length===0||AS.modules.includes(m)).map(m=>{
@@ -1230,6 +1265,7 @@ function maakToets() {
   const available=getASAvailable();
   if(!available.length) { showToast('Geen vragen beschikbaar','danger'); return; }
   const naam=AS.naam.trim()||('Toets '+new Date().toLocaleDateString('nl-NL'));
+  const isRef=AS.mode==='refreshment';
   const code=toetsCodify({
     naam,
     instructies:AS.instructies,
@@ -1238,9 +1274,13 @@ function maakToets() {
     modules:[...AS.modules],
     cats:[...AS.cats],
     niveaus:[...AS.niveaus],
-    numQ:Math.min(AS.numQ,available.length),
+    numQ:isRef ? Math.min(AS.maxRefQ, available.length) : Math.min(AS.numQ,available.length),
     verdeling:AS.verdeling,
     passPercent:AS.passPercent,
+    targetScore: isRef ? AS.targetScore : undefined,
+    maxRefQ: isRef ? AS.maxRefQ : undefined,
+    pointsCorrect: isRef ? AS.pointsCorrect : undefined,
+    pointsIncorrect: isRef ? AS.pointsIncorrect : undefined,
   });
   modalRoot().innerHTML=`
   <div class="modal-overlay" onclick="if(event.target===this)clearModal()">
@@ -1261,12 +1301,17 @@ function maakToets() {
 function previewToets() {
   const available=getASAvailable();
   if(!available.length) { showToast('Geen vragen beschikbaar','danger'); return; }
-  const questions=selectQuestions(available,Math.min(AS.numQ,available.length),AS.verdeling);
+  const isRef=AS.mode==='refreshment';
+  const questions=selectQuestions(available, isRef ? Math.min(AS.maxRefQ,available.length) : Math.min(AS.numQ,available.length), AS.verdeling);
   App.quizConfig={
     naam:AS.naam||'Preview',
     mode:AS.mode,
     lang:App.lang,
     passPercent:AS.passPercent,
+    targetScore: isRef ? AS.targetScore : undefined,
+    maxRefQ: isRef ? AS.maxRefQ : undefined,
+    pointsCorrect: isRef ? AS.pointsCorrect : undefined,
+    pointsIncorrect: isRef ? AS.pointsIncorrect : undefined,
     isPreview:true,
     questions,
     resolvedAdminNaam:App.currentAdmin?.naam,
@@ -1654,13 +1699,14 @@ function renderAdminResultaten() {
     ${results.length===0?`<div class="card empty"><div class="empty-icon">📊</div><p>Nog geen resultaten beschikbaar.</p></div>`:
     `<div class="card" style="overflow-x:auto;">
       <table class="result-table">
-        <thead><tr><th>Naam</th><th>Datum</th><th>Toets</th><th>Score</th><th>Geslaagd</th><th>Tijd</th></tr></thead>
+        <thead><tr><th>Naam</th><th>Datum</th><th>Toets</th><th>Type</th><th>Score</th><th>Geslaagd</th><th>Tijd</th></tr></thead>
         <tbody>
           ${results.map(r=>`<tr>
             <td><strong>${r.naam||'—'}</strong></td>
             <td style="font-size:12px;color:var(--text-light);">${new Date(r.datum||'').toLocaleString('nl-NL',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
             <td>${r.toetsNaam||'—'}</td>
-            <td class="mono" style="font-weight:700;color:${r.passed?'var(--success)':'var(--danger)'}">${Math.round((r.correctCount/r.totalQuestions)*100)}%</td>
+            <td><span class="badge ${r.type==='refreshment'?'badge-accent':''}">${r.type==='refreshment'?'⚡ Refreshment':'📋 Kennischeck'}</span></td>
+            <td class="mono" style="font-weight:700;color:${r.passed?'var(--success)':'var(--danger)'}">${r.type==='refreshment'?(r.refScore!==undefined?r.refScore+' pt':r.score):Math.round((r.correctCount/r.totalQuestions)*100)+'%'}</td>
             <td><span class="badge ${r.passed?'badge-success':'badge-danger'}">${r.passed?'✓ Geslaagd':'✗ Niet geslaagd'}</span></td>
             <td style="font-size:12px;color:var(--text-light);">${formatTime(r.timeMs||0)}</td>
           </tr>`).join('')}
@@ -1931,7 +1977,9 @@ function zoekToets() {
   App.lang=toets.lang||'nl';
   const pool=getFilteredQuestions(toets.modules||[],toets.cats||[],toets.niveaus||[]);
   App.lang=oldLang;
-  const questions=selectQuestions(pool,toets.numQ,toets.verdeling);
+  const isRef=toets.mode==='refreshment';
+  const poolSize=isRef ? Math.min(toets.maxRefQ||30, pool.length) : toets.numQ;
+  const questions=selectQuestions(pool,poolSize,toets.verdeling);
   App.quizConfig={...toets, questions, resolvedAdminNaam: toets.adminNaam || 'default'};
   App.quizState=null;
   nav('deelnemer-naam');
@@ -1974,18 +2022,32 @@ function renderQuizIntro() {
   const cfg=App.quizConfig;
   const lang=cfg?.lang||App.lang;
   const numQ=cfg?.questions?.length||0;
+  const isRef=cfg?.mode==='refreshment';
   app().innerHTML=`
   ${shellHeader('Toets info')}
   <div class="container-narrow" style="padding-top:60px;text-align:center;">
-    <div style="font-size:52px;margin-bottom:16px;">📋</div>
+    <div style="font-size:52px;margin-bottom:16px;">${isRef?'⚡':'📋'}</div>
     <h1 class="mb-4">${cfg?.naam||'Kennisscan'}</h1>
     <p class="subtitle mb-32">${App.deelnemerNaam?`${lang==='nl'?'Deelnemer':'Participant'}: <strong>${App.deelnemerNaam}</strong>`:''}  </p>
 
     <div class="grid-3 mb-32">
+      ${isRef?`
+      <div class="card stat-card"><div class="stat-value" style="color:var(--gold-dark);">${cfg.targetScore}</div><div class="stat-label">Target punten</div></div>
+      <div class="card stat-card"><div class="stat-value" style="color:var(--success);">+${cfg.pointsCorrect||2}</div><div class="stat-label">Punten per juist antwoord</div></div>
+      <div class="card stat-card"><div class="stat-value" style="color:var(--danger);">−${cfg.pointsIncorrect||1}</div><div class="stat-label">Punten aftrek bij fout</div></div>
+      `:`
       <div class="card stat-card"><div class="stat-value">${numQ}</div><div class="stat-label">${lang==='nl'?'Vragen':'Questions'}</div></div>
-      <div class="card stat-card"><div class="stat-value">${cfg?.mode==='refreshment'?'⚡':'📋'}</div><div class="stat-label">${cfg?.mode==='refreshment'?'Refreshment':'Kennischeck'}</div></div>
+      <div class="card stat-card"><div class="stat-value">📋</div><div class="stat-label">Kennischeck</div></div>
       <div class="card stat-card"><div class="stat-value">${cfg?.passPercent||70}%</div><div class="stat-label">${lang==='nl'?'Zakgrens':'Pass mark'}</div></div>
+      `}
     </div>
+
+    ${isRef?`<div class="notify notify-info mb-24" style="text-align:left;">
+      <strong>⚡ Adaptieve Refreshment:</strong> Beantwoord vragen en verzamel punten.<br>
+      Bij een juist antwoord krijg je <strong>+${cfg.pointsCorrect||2} punt${(cfg.pointsCorrect||2)>1?'en':''}</strong>.
+      Bij een fout antwoord verlies je <strong>−${cfg.pointsIncorrect||1} punt${(cfg.pointsIncorrect||1)>1?'en':''}</strong>.<br>
+      Bereik <strong>${cfg.targetScore} punten</strong> om de refreshment succesvol af te ronden.
+    </div>`:''}
 
     ${cfg?.instructies?`<div class="card mb-24" style="text-align:left;"><div class="label mb-8">${lang==='nl'?'Instructies':'Instructions'}</div><p style="font-size:14px;line-height:1.6;">${cfg.instructies}</p></div>`:''}
 
@@ -2008,6 +2070,7 @@ function startQuiz() {
     start:Date.now(),
     streak:0,maxStreak:0,
     score:0,
+    refScore:0, // adaptive points score for refreshment
     answered:false,
     selectedOptions:[],
     shuffledOptions:[],
@@ -2021,15 +2084,25 @@ function renderQuiz() {
   const qs=App.quizState;
   if(!qs||!cfg) return nav('deelnemer-start');
   const lang=cfg.lang||App.lang;
+  const isRef=cfg.mode==='refreshment';
 
   if(qs.current>=qs.questions.length) {
     finishQuiz();
     return;
   }
 
+  // For refreshment: check if target score reached
+  if(isRef && qs.refScore>=(cfg.targetScore||15)) {
+    finishQuiz();
+    return;
+  }
+
   const q=qs.questions[qs.current];
   const isLast=qs.current===qs.questions.length-1;
-  const pct=Math.round((qs.current/qs.questions.length)*100);
+  const pct=isRef
+    ? Math.min(100, Math.max(0, Math.round((qs.refScore / (cfg.targetScore||15)) * 100)))
+    : Math.round((qs.current/qs.questions.length)*100);
+
   const opts=['a','b','c','d'].filter(k=>q[k]&&q[k].trim()&&q[k]!=='undefined');
 
   // Shuffle options on first load of this question
@@ -2040,18 +2113,30 @@ function renderQuiz() {
 
   const correctKeys=parseCorrect(q.correct);
 
+  // Refreshment score display
+  const refScoreDisplay = isRef ? `
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:10px;
+      background:${qs.refScore>=0?'rgba(22,163,74,0.12)':'rgba(220,38,38,0.12)'};
+      border:1px solid ${qs.refScore>=0?'rgba(22,163,74,0.25)':'rgba(220,38,38,0.25)'};">
+      <span style="font-size:11px;font-weight:700;color:var(--text-light);">SCORE</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;
+        color:${qs.refScore>=0?'var(--success)':'var(--danger)'};">${qs.refScore>=0?'+':''}${qs.refScore}</span>
+      <span style="font-size:11px;color:var(--text-light);">/ ${cfg.targetScore}</span>
+    </div>` : '';
+
   app().innerHTML=`
   <div class="topbar no-print"></div>
   <div class="header-bar no-print">
     <div class="logo-mark" style="width:28px;height:28px;font-size:10px;font-weight:800;">TA</div>
     <div class="flex-1">
       <div class="progress-track">
-        <div class="progress-fill" style="width:${pct}%"></div>
+        <div class="progress-fill" style="width:${pct}%;${isRef?'background:linear-gradient(90deg,var(--gold-dark),var(--gold));':''}"></div>
       </div>
     </div>
+    ${refScoreDisplay}
     <div class="live-timer">⏱ <span id="live-timer-val">${formatTime(Date.now()-qs.start)}</span></div>
     ${qs.streak>=3?`<div class="streak-badge">🔥 ${qs.streak}</div>`:''}
-    <div class="badge">${lang==='nl'?'Vraag':'Q'} ${qs.current+1}/${qs.questions.length}</div>
+    <div class="badge">${lang==='nl'?'Vraag':'Q'} ${qs.current+1}${isRef?'':'/'+qs.questions.length}</div>
   </div>
 
   <div class="container" style="padding-top:24px;">
@@ -2083,11 +2168,17 @@ function renderQuiz() {
       ${qs.answered?`
         <div class="toelichting">
           <strong>${qs.answers[qs.current]?.isCorrect?(lang==='nl'?'✓ Correct!':'✓ Correct!'):(lang==='nl'?'✗ Niet correct':'✗ Incorrect')}</strong>
+          ${isRef?`<span style="float:right;font-size:13px;font-weight:700;color:${qs.answers[qs.current]?.isCorrect?'var(--success)':'var(--danger)'};">
+            ${qs.answers[qs.current]?.isCorrect?'+'+cfg.pointsCorrect+' pt':'−'+cfg.pointsIncorrect+' pt'}
+          </span>`:''}
           ${q.toelichting&&q.toelichting!=='undefined'?` — ${q.toelichting}`:''}
         </div>
         <div class="flex gap-12 mt-20" style="justify-content:flex-end;">
           <button class="btn btn-primary" onclick="nextQuestion()">
-            ${isLast?(lang==='nl'?'Afronden ✓':'Finish ✓'):(lang==='nl'?'Volgende →':'Next →')}
+            ${isRef
+              ? (lang==='nl'?'Volgende vraag →':'Next question →')
+              : (isLast?(lang==='nl'?'Afronden ✓':'Finish ✓'):(lang==='nl'?'Volgende →':'Next →'))
+            }
           </button>
         </div>`:''}
     </div>
@@ -2097,14 +2188,20 @@ function renderQuiz() {
 function selectOption(key) {
   const qs=App.quizState;
   if(qs.answered) return;
+  const cfg=App.quizConfig;
   const q=qs.questions[qs.current];
   const correctKeys=parseCorrect(q.correct);
   qs.selectedOptions=[key];
   const isCorrect=correctKeys.includes(key.toUpperCase());
   qs.answered=true;
+  const isRef=cfg.mode==='refreshment';
+  const ptsCorrect=cfg.pointsCorrect||2;
+  const ptsIncorrect=cfg.pointsIncorrect||1;
+  const delta=isCorrect?ptsCorrect:-ptsIncorrect;
   if(isCorrect){qs.streak++;qs.maxStreak=Math.max(qs.maxStreak,qs.streak);qs.score++;SoundEngine.correct();}
   else{qs.streak=0;SoundEngine.incorrect();}
-  qs.answers[qs.current]={selected:[key.toUpperCase()],correct:correctKeys,isCorrect,delta:isCorrect?1:-1};
+  if(isRef) qs.refScore=Math.max(0, qs.refScore+delta);
+  qs.answers[qs.current]={selected:[key.toUpperCase()],correct:correctKeys,isCorrect,delta};
   renderQuiz();
 }
 
@@ -2127,10 +2224,12 @@ function finishQuiz() {
   const cfg=App.quizConfig;
   const qs=App.quizState;
   const lang=cfg?.lang||App.lang;
+  const isRef=cfg?.mode==='refreshment';
   const correctCount=qs.answers.filter(a=>a?.isCorrect).length;
-  const totalQuestions=qs.questions.length;
-  const pct=Math.round((correctCount/totalQuestions)*100);
-  const passed=pct>=(cfg?.passPercent||70);
+  const totalQuestions=qs.answers.length; // actual answered
+  const pct=totalQuestions>0?Math.round((correctCount/totalQuestions)*100):0;
+  const targetScore=cfg?.targetScore||15;
+  const passed=isRef ? (qs.refScore>=targetScore) : pct>=(cfg?.passPercent||70);
   const timeMs=Date.now()-qs.start;
 
   const r={
@@ -2138,11 +2237,13 @@ function finishQuiz() {
     datum:new Date().toISOString(),
     toetsNaam:cfg?.naam||'Kennisscan',
     type:cfg?.mode||'kennischeck',
-    score:pct+'%',
+    score:isRef ? qs.refScore+' pt' : pct+'%',
+    refScore: isRef ? qs.refScore : undefined,
+    targetScore: isRef ? targetScore : undefined,
     correctCount,totalQuestions,passed,timeMs,
     passPercent:cfg?.passPercent||70,
     answers:qs.answers,
-    questions:qs.questions,
+    questions:qs.questions.slice(0,totalQuestions),
     maxStreak:qs.maxStreak,
     code: cfg?.code || '—',
     lang: cfg?.lang || App.lang || 'nl',
@@ -2151,18 +2252,21 @@ function finishQuiz() {
 
   if(!cfg?.isPreview) {
     saveResult(r);
-
   }
 
   let reviewHTML='';
 
-  for(let i=0;i<qs.questions.length;i++){
+  for(let i=0;i<totalQuestions;i++){
     const ans=qs.answers[i];if(!ans) continue;
     const q=qs.questions[i];if(!q) continue;
+    const deltaText=isRef?(ans.isCorrect?`+${cfg.pointsCorrect||2} pt`:`−${cfg.pointsIncorrect||1} pt`):'';
     reviewHTML+=`<div class="review-item ${ans.isCorrect?'review-correct':'review-incorrect'} mb-8">
       <div class="flex-between mb-8">
         <span class="badge ${ans.isCorrect?'badge-success':'badge-danger'}">${ans.isCorrect?(lang==='nl'?'✓ Correct':'✓ Correct'):(lang==='nl'?'✗ Fout':'✗ Incorrect')}</span>
-        <span class="badge badge-light">${q.module}</span>
+        <div class="flex gap-6 flex-center">
+          ${isRef?`<span style="font-size:12px;font-weight:700;color:${ans.isCorrect?'var(--success)':'var(--danger)'};">${deltaText}</span>`:''}
+          <span class="badge badge-light">${q.module}</span>
+        </div>
       </div>
       <div style="font-size:13px;font-weight:600;line-height:1.5;margin-bottom:8px;">${q.vraag}</div>
       <div style="font-size:12px;color:var(--text-light);">
@@ -2188,12 +2292,19 @@ function finishQuiz() {
   <div class="container">
     <div class="text-center mb-32 mt-24">
       <div class="result-circle ${passed?'pass':'fail'} result-circle-anim">
-        <div class="score">${pct}%</div>
-        <div class="score-label">${lang==='nl'?'correct':'correct'}</div>
+        <div class="score">${isRef?qs.refScore+' pt':pct+'%'}</div>
+        <div class="score-label">${isRef?'punten':'correct'}</div>
       </div>
       <h2 class="mb-4">${cfg?.naam||'Kennisscan'}</h2>
       ${App.deelnemerNaam?`<p class="subtitle">${App.deelnemerNaam}</p>`:''}
-      <p class="subtitle" style="margin-top:6px;">${passed?(lang==='nl'?'✓ Succesvol afgerond':'✓ Successfully completed'):(lang==='nl'?`Minimaal ${cfg?.passPercent}% vereist`:`Minimum ${cfg?.passPercent}% required`)}</p>
+      <p class="subtitle" style="margin-top:6px;">
+        ${isRef
+          ? (passed
+              ? `✓ Target score van ${targetScore} punten bereikt!`
+              : `${qs.refScore} van ${targetScore} punten behaald. Niet voldaan.`)
+          : (passed?(lang==='nl'?'✓ Succesvol afgerond':'✓ Successfully completed'):(lang==='nl'?`Minimaal ${cfg?.passPercent}% vereist`:`Minimum ${cfg?.passPercent}% required`))
+        }
+      </p>
     </div>
 
     <div class="grid-3 mb-24">
@@ -2201,6 +2312,15 @@ function finishQuiz() {
       <div class="card stat-card"><div class="stat-value" style="color:var(--gold-dark);">🔥 ${qs.maxStreak||0}</div><div class="stat-label">${lang==='nl'?'Langste reeks':'Longest streak'}</div></div>
       <div class="card stat-card"><div class="stat-value">${formatTime(timeMs)}</div><div class="stat-label">${lang==='nl'?'Totale tijd':'Total time'}</div></div>
     </div>
+
+    ${isRef?`<div class="card mb-24" style="text-align:center;padding:20px;">
+      <div class="label mb-8" style="color:var(--gold-dark);">⚡ Refreshment score</div>
+      <div style="background:var(--bg);border-radius:12px;height:18px;overflow:hidden;margin-bottom:8px;">
+        <div style="height:100%;border-radius:12px;width:${Math.min(100,Math.round((qs.refScore/targetScore)*100))}%;
+          background:linear-gradient(90deg,var(--gold-dark),var(--gold));transition:width 1s ease;"></div>
+      </div>
+      <div style="font-size:13px;color:var(--text-light);">${qs.refScore} / ${targetScore} punten (${Math.round((qs.refScore/targetScore)*100)}%)</div>
+    </div>`:''}
 
     <div class="card mb-24">
       <h3 class="mb-16">${lang==='nl'?'Vraag-voor-vraag overzicht':'Question-by-question overview'}</h3>
